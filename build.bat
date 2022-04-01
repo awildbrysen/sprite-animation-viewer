@@ -1,0 +1,2 @@
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+cl.exe /Zi /EHsc /fsanitize=address /Fe: a.exe /ISDL2-2.0.20\include /ISDL2_ttf-2.0.18\include /ISDL2_image-2.0.5\include main.c shell32.lib SDL2.lib SDL2main.lib SDL2test.lib SDL2_ttf.lib SDL2_image.lib /link /LIBPATH:SDL2-2.0.20\lib\x64 /LIBPATH:SDL2_ttf-2.0.18\lib\x64 /LIBPATH:SDL2_image-2.0.5\lib\x64 /SUBSYSTEM:CONSOLE
