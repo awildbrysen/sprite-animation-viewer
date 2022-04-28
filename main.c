@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <windows.h>
-
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
@@ -227,11 +225,27 @@ int main(int argc, char *argv[])
 	tiFilePath.labeltextsize = 6;
 	tiFilePath.label = (char*)malloc(sizeof(char) * tiFilePath.labeltextsize);
 	strcpy(tiFilePath.label, "File:");
+
+	// bottom-right color picker
+	// Square with white or black border and the current background color inside
+
+	SDL_Rect colorpickerRect;
+	colorpickerRect.w = 25;
+	colorpickerRect.h = 25;
+	colorpickerRect.x = ww - colorpickerRect.w - 16;
+	colorpickerRect.y = wh - 16 - colorpickerRect.h;
+
+	char *colorpickerLabel = (char*)malloc(sizeof(char) * 12);
+	strcpy(colorpickerLabel, "Background:");
 			
 	SDL_StopTextInput();
 
+	// TODO: This shouldn't just be the text input but all general types of input.
+	// 		f.e. the background color should be operatable through this as well
 	struct TextInput *currentlyFocussedInput;
 	currentlyFocussedInput = NULL;
+
+	SDL_Color backgroundColor = { 4, 32, 39, 255 };
 
 	int running = 1;
 	while (running)
@@ -274,6 +288,17 @@ int main(int argc, char *argv[])
 				SDL_MouseButtonEvent mbevent = e.button;
 				if (mbevent.button == SDL_BUTTON_LEFT)
 				{
+
+					if (colorpickerRect.x < mbevent.x && ((colorpickerRect.x + colorpickerRect.w) > mbevent.x))
+					{
+						if (colorpickerRect.y < mbevent.y && ((colorpickerRect.y + colorpickerRect.h) > mbevent.y))
+						{
+							// TODO: Open color picker
+							backgroundColor = (SDL_Color){ 255, 0, 0, 255 };
+							break;
+						}
+					}
+
 					if (tiAnimationRate.x < mbevent.x && ((tiAnimationRate.x + tiAnimationRate.w) > mbevent.x))
 					{
 						if (tiAnimationRate.y < mbevent.y && ((tiAnimationRate.y + tiAnimationRate.h) > mbevent.y))
@@ -312,12 +337,30 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		SDL_SetRenderDrawColor(renderer, 4, 32, 39, 255);
+		// SDL_SetRenderDrawColor(renderer, 4, 32, 39, 255);
+		SDL_SetRenderDrawColor(renderer, backgroundColor.r, backgroundColor.g, backgroundColor.b, backgroundColor.a);
 		SDL_RenderClear(renderer);
 
 		drawTextInput(window, renderer, f, &tiAnimationRate, currentlyFocussedInput);
 		drawTextInput(window, renderer, f, &tiFrameCount, currentlyFocussedInput);
 		drawTextInput(window, renderer, f, &tiFilePath, currentlyFocussedInput);
+
+		// Color picker button
+		SDL_RenderFillRect(renderer, &colorpickerRect);
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		SDL_RenderDrawRect(renderer, &colorpickerRect);
+
+			// Draw label
+		int cpll = strlen(colorpickerLabel);
+		int labelwidth = (GlyphWidth * cpll) + 4;
+		for (int i = 0; i < cpll; i++)
+		{
+			char c = colorpickerLabel[i];
+			struct GlyphPosition p = GlyphMapping[(int)c];
+			SDL_Rect src = { p.x, p.y, GlyphWidth, GlyphHeight };
+			SDL_Rect dst = { (colorpickerRect.x - labelwidth) + (i * GlyphWidth), colorpickerRect.y + 4, GlyphWidth, GlyphHeight };
+			SDL_RenderCopy(renderer, GlyphAtlas, &src, &dst);
+		}
 
 		Uint64 ticks = SDL_GetTicks64();
 		animationRate = atoi(tiAnimationRate.currentinput);
