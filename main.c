@@ -53,6 +53,18 @@ SDL_Texture *createGlyphAtlas(SDL_Renderer *renderer, TTF_Font *font)
 	return texture;
 }
 
+void RenderText(SDL_Renderer *renderer, TTF_Font *font, char *text, int x, int y)
+{
+	for (int i = 0; i < strlen(text); i++)
+	{
+		char c = text[i];
+		struct GlyphPosition p = GlyphMapping[(int)c];
+		SDL_Rect src = { p.x, p.y, GlyphWidth, GlyphHeight };
+		SDL_Rect dst = { x + (i * GlyphWidth), y, GlyphWidth, GlyphHeight };
+		SDL_RenderCopy(renderer, GlyphAtlas, &src, &dst);
+	}
+}
+
 struct TextInput 
 {
 	char *currentinput;
@@ -70,7 +82,7 @@ struct TextInput
 	int h;
 };
 
-void drawTextInput(SDL_Window *window, SDL_Renderer *renderer, TTF_Font *font, struct TextInput *ti, struct TextInput *currentlyFocussedInput)
+void drawTextInput(SDL_Window *window, SDL_Renderer *renderer, TTF_Font *font, struct TextInput *ti, struct TextInput *currentlyFocussedInput, int cursorIndex)
 {
 	int r, g, b, a;
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
@@ -99,14 +111,21 @@ void drawTextInput(SDL_Window *window, SDL_Renderer *renderer, TTF_Font *font, s
 
 	SDL_SetTextureBlendMode(GlyphAtlas, SDL_BLENDMODE_BLEND);
 	
-	for (int i = 0; i < ti->textsize; i++)
+	// Render cursor
+	if (currentlyFocussedInput != NULL && ti->id == currentlyFocussedInput->id) 
 	{
-		char c = ti->currentinput[i];
-		struct GlyphPosition p = GlyphMapping[(int)c];
-		SDL_Rect src = { p.x, p.y, GlyphWidth, GlyphHeight };
-		SDL_Rect dst = { (ti->x + 4) + (i * GlyphWidth), ti->y + 4, GlyphWidth, GlyphHeight };
-		SDL_RenderCopy(renderer, GlyphAtlas, &src, &dst);
+		SDL_Rect cursor;
+		cursor.x = rect.x + 4 + cursorIndex * GlyphWidth;
+		cursor.y = rect.y + 4;
+		cursor.w = GlyphWidth;
+		cursor.h = GlyphHeight;
+
+		SDL_SetRenderDrawColor(renderer, 0, 176, 0, 255);
+		SDL_RenderFillRect(renderer, &cursor);
 	}
+
+	RenderText(renderer, font, ti->currentinput, ti->x + 4, ti->y + 4);
+
 
 	// draw label
 	int labelwidth = (GlyphWidth * ti->labeltextsize) + 4;
@@ -210,11 +229,10 @@ int main(int argc, char *argv[])
 	struct TextInput tiFilePath;
 	tiFilePath.id = 3;
 	
-
 	tiFilePath.textsize = 55;
 	tiFilePath.maxtextsize = 244;
 	tiFilePath.currentinput = (char*)malloc(sizeof(char) * tiFilePath.textsize);
-	strcpy(tiFilePath.currentinput, "E:/Code/spritesheet-animation-sdl/skeleton-idle.png");
+	strcpy(tiFilePath.currentinput, "D:/Code/spritesheet-animation-sdl/skeleton-idle.png");
 	texture = IMG_LoadTexture(renderer, tiFilePath.currentinput);
 
 	tiFilePath.w = tiFilePath.textsize * GlyphWidth;
@@ -225,6 +243,24 @@ int main(int argc, char *argv[])
 	tiFilePath.labeltextsize = 6;
 	tiFilePath.label = (char*)malloc(sizeof(char) * tiFilePath.labeltextsize);
 	strcpy(tiFilePath.label, "File:");
+
+	struct TextInput tiImageDimension;
+	tiImageDimension.id = 4;
+
+	tiImageDimension.textsize = 3;
+	tiImageDimension.maxtextsize = 4;
+	tiImageDimension.currentinput = (char*)malloc(sizeof(char)*tiImageDimension.textsize);
+	strcpy(tiImageDimension.currentinput, "32");
+
+	tiImageDimension.w = (GlyphWidth * 2) + 8;
+	tiImageDimension.h = GlyphHeight + 8;
+	tiImageDimension.x = ww - tiImageDimension.w - 16;
+	tiImageDimension.y = tiFrameCount.y + tiFrameCount.h + 4;
+
+	tiImageDimension.labeltextsize = 16;
+	tiImageDimension.label = (char*)malloc(sizeof(char) * tiImageDimension.labeltextsize);
+	strcpy(tiImageDimension.label, "Image dimension");
+
 
 	// bottom-right color picker
 	// Square with white or black border and the current background color inside
@@ -245,6 +281,8 @@ int main(int argc, char *argv[])
 	struct TextInput *currentlyFocussedInput;
 	currentlyFocussedInput = NULL;
 
+	int cursorIndex = -1;
+
 	SDL_Color backgroundColor = { 4, 32, 39, 255 };
 
 	int running = 1;
@@ -263,10 +301,23 @@ int main(int argc, char *argv[])
 				if (strlen(currentlyFocussedInput->currentinput) + strlen(e.text.text) >= currentlyFocussedInput->maxtextsize) break;
 				if (strlen(currentlyFocussedInput->currentinput) + strlen(e.text.text) >= currentlyFocussedInput->textsize)
 				{
-					currentlyFocussedInput->textsize = currentlyFocussedInput->maxtextsize;
+					currentlyFocussedInput->textsize = currentlyFocussedInput->textsize + 5;
 					currentlyFocussedInput->currentinput = (char*)realloc(currentlyFocussedInput->currentinput, currentlyFocussedInput->textsize);
 				}
-				strcat(currentlyFocussedInput->currentinput, e.text.text);
+
+				int addLength = strlen(e.text.text);
+				for (int i = strlen(currentlyFocussedInput->currentinput) + 1; i >= cursorIndex + addLength; i--)
+				{
+					currentlyFocussedInput->currentinput[i] = currentlyFocussedInput->currentinput[i - 1];
+				}
+
+				for (int i = 0; i < addLength; i++)
+				{
+					currentlyFocussedInput->currentinput[cursorIndex + i] = e.text.text[i];
+				}
+				cursorIndex += 1;
+
+				// trigger reload of the loaded image
 				if (currentlyFocussedInput->id == tiFilePath.id)
 				{
 					tiFilePath.w = tiFilePath.textsize * GlyphWidth; // change size of text input
@@ -275,14 +326,55 @@ int main(int argc, char *argv[])
 				}
 			break;
 			case SDL_KEYDOWN:
-				if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE && currentlyFocussedInput != NULL)
+				
+				if (currentlyFocussedInput != NULL)
 				{
-					if (strlen(currentlyFocussedInput->currentinput) != 0) currentlyFocussedInput->currentinput[strlen(currentlyFocussedInput->currentinput) - 1] = '\0';
+					// Input editing
+					
+					if (e.key.keysym.scancode == SDL_SCANCODE_LEFT)
+					{
+						cursorIndex -= 1;
+						if (cursorIndex < 0) cursorIndex = 0;
+					}
+					if (e.key.keysym.scancode == SDL_SCANCODE_RIGHT)
+					{
+						cursorIndex += 1;
+						if (cursorIndex >= strlen(currentlyFocussedInput->currentinput))
+						{
+							cursorIndex = strlen(currentlyFocussedInput->currentinput);
+						}
+					}
+					
+					if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE)
+					{
+						if (strlen(currentlyFocussedInput->currentinput) != 0 && cursorIndex > 0)
+						{
+							for (int i = 0; i < currentlyFocussedInput->textsize - (cursorIndex - 1); i++)
+							{
+								if (strlen(currentlyFocussedInput->currentinput) < cursorIndex - 1 + i) continue;
+								currentlyFocussedInput->currentinput[cursorIndex - 1 + i] = currentlyFocussedInput->currentinput[cursorIndex + i];
+							}
+							if (cursorIndex <= strlen(currentlyFocussedInput->currentinput) + 1) 
+							{
+								currentlyFocussedInput->textsize = currentlyFocussedInput->textsize - 1;
+								cursorIndex -= 1;
+							}
+
+							// trigger reload of the loaded image, duplicate of :305-:310
+							if (currentlyFocussedInput->id == tiFilePath.id)
+							{
+								tiFilePath.w = tiFilePath.textsize * GlyphWidth; // change size of text input
+								// load different image file
+								texture = IMG_LoadTexture(renderer, currentlyFocussedInput->currentinput);
+							}
+						}
+					}
+					if (e.key.keysym.scancode == SDL_SCANCODE_RETURN)
+					{
+						currentlyFocussedInput = NULL;
+					}
 				}
-				if (e.key.keysym.scancode == SDL_SCANCODE_RETURN && currentlyFocussedInput != NULL)
-				{
-					currentlyFocussedInput = NULL;
-				}
+
 			break;
 			case SDL_MOUSEBUTTONDOWN:
 				SDL_MouseButtonEvent mbevent = e.button;
@@ -308,6 +400,9 @@ int main(int argc, char *argv[])
 						else if (tiFrameCount.y < mbevent.y && ((tiFrameCount.y + tiFrameCount.h) > mbevent.y))
 						{
 							currentlyFocussedInput = &tiFrameCount;
+						} else if (tiImageDimension.y < mbevent.y && ((tiImageDimension.y + tiImageDimension.h) > mbevent.y))
+						{
+							currentlyFocussedInput = &tiImageDimension;
 						}
 					}
 					else if (tiFilePath.x < mbevent.x && ((tiFilePath.x + tiFilePath.w) > mbevent.x))
@@ -326,6 +421,8 @@ int main(int argc, char *argv[])
 				if (currentlyFocussedInput != NULL) 
 				{
 					printf("Currently focussed input: %d\n", currentlyFocussedInput->id);
+					int len = strlen(currentlyFocussedInput->currentinput);
+					cursorIndex = len - 1;
 					SDL_StartTextInput();
 				} 
 				else 
@@ -341,9 +438,10 @@ int main(int argc, char *argv[])
 		SDL_SetRenderDrawColor(renderer, backgroundColor.r, backgroundColor.g, backgroundColor.b, backgroundColor.a);
 		SDL_RenderClear(renderer);
 
-		drawTextInput(window, renderer, f, &tiAnimationRate, currentlyFocussedInput);
-		drawTextInput(window, renderer, f, &tiFrameCount, currentlyFocussedInput);
-		drawTextInput(window, renderer, f, &tiFilePath, currentlyFocussedInput);
+		drawTextInput(window, renderer, f, &tiAnimationRate, currentlyFocussedInput, cursorIndex);
+		drawTextInput(window, renderer, f, &tiFrameCount, currentlyFocussedInput, cursorIndex);
+		drawTextInput(window, renderer, f, &tiFilePath, currentlyFocussedInput, cursorIndex);
+		drawTextInput(window, renderer, f, &tiImageDimension, currentlyFocussedInput, cursorIndex);
 
 		// Color picker button
 		SDL_RenderFillRect(renderer, &colorpickerRect);
@@ -368,11 +466,13 @@ int main(int argc, char *argv[])
 		if (frameCount == 0) frameCount = 1;
 		int p = ((ticks - startTime) * animationRate / 1000) % frameCount;
 
+		int dimension = atoi(tiImageDimension.currentinput);
+
 		SDL_Rect src;
-		src.x = p * 16;
+		src.x = p * dimension;
 		src.y = 0;
-		src.w = 16;
-		src.h = 16;
+		src.w = dimension;
+		src.h = dimension;
 
 		SDL_Rect dst;
 		dst.x = 50;
